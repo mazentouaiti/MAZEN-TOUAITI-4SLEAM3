@@ -82,33 +82,43 @@ spring.h2.console.enabled=false'''
             steps {
                 script {
                     echo "Testing Docker container without database..."
-                    sh """
-                        # Clean up old container
-                        docker stop test-container 2>/dev/null || true
-                        docker rm -f test-container 2>/dev/null || true
 
-                        # Run the FRESHLY BUILT image
-                        docker run -d --name test-container -p 8090:8089 \\
-                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    // Stop and remove any existing test container
+                    sh '''
+                        docker stop test-container || true
+                        docker rm -f test-container || true
+                    '''
 
-                        # Wait for startup
-                        sleep 15
+                    // Use the locally built image
+                    sh '''
+                        docker run -d --name test-container -p 8090:8089 student-management:latest
+                    '''
 
-                        # Check container status
+                    // Wait for container to start
+                    sleep 30
+
+                    // Test if the application is responding
+                    sh '''
+                        echo "Testing application health..."
+                        curl --retry 10 --retry-delay 5 --retry-max-time 60 --max-time 30 http://localhost:8090/actuator/health || true
+                    '''
+
+                    // Check container logs
+                    sh '''
+                        echo "Container logs:"
+                        docker logs test-container --tail=50
+                    '''
+
+                    // Check if container is running
+                    sh '''
                         if docker ps | grep -q test-container; then
                             echo "✅ Container is running"
-                            echo "=== Container logs (last 20 lines) ==="
-                            docker logs test-container --tail 20
                         else
                             echo "❌ Container failed to start"
                             docker logs test-container
                             exit 1
                         fi
-
-                        # Clean up
-                        docker stop test-container
-                        docker rm test-container
-                    """
+                    '''
                 }
             }
         }
