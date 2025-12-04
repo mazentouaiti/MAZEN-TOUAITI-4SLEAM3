@@ -32,16 +32,23 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                echo 'Running unit tests (skipping due to DB dependency)...'
+                echo 'Running unit tests with H2 in-memory database...'
                 sh '''
-                    # Create test configuration to disable database
+                    # Create test configuration with H2 database
                     mkdir -p src/test/resources
                     cat > src/test/resources/application-test.properties << 'EOF'
-spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-management.health.db.enabled=false
-EOF
-                    # Run tests with skipTests for now
-                    ./mvnw test -DskipTests
+        # Test profile with H2 in-memory database
+        spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+        spring.datasource.driver-class-name=org.h2.Driver
+        spring.datasource.username=sa
+        spring.datasource.password=
+        spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+        spring.jpa.hibernate.ddl-auto=create-drop
+        spring.jpa.show-sql=false
+        spring.h2.console.enabled=false
+        EOF
+                    # Run tests
+                    ./mvnw test
                 '''
             }
             post {
