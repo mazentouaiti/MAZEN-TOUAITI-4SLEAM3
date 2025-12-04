@@ -80,17 +80,28 @@ spring.h2.console.enabled=false'''
         stage('Test Docker Container') {
             steps {
                 script {
-                    echo 'Testing Docker container without DB...'
-                    sh """
-                        docker run -d --name test-container \
-                          -p ${APP_PORT}:${APP_PORT} \
-                          -e SPRING_PROFILES_ACTIVE=test \
-                          ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        sleep 15
-                        docker logs test-container | tail -20
-                        docker stop test-container || true
-                        docker rm test-container || true
-                    """
+                    echo "Testing Docker container..."
+                    sh '''
+                        # Clean up old container
+                        docker stop test-container 2>/dev/null || true
+                        docker rm -f test-container 2>/dev/null || true
+
+                        # Run on port 8090 instead of 8089
+                        docker run -d --name test-container -p 8090:8089 \
+                            mazentouaiti/student-management:9
+
+                        # Wait a bit
+                        sleep 10
+
+                        # Just check if container is running
+                        if docker ps | grep -q test-container; then
+                            echo "✅ Container is running"
+                        else
+                            echo "❌ Container failed"
+                            docker logs test-container
+                            exit 1
+                        fi
+                    '''
                 }
             }
         }
