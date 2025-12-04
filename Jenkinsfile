@@ -22,9 +22,10 @@ pipeline {
                     echo 'Building Spring Boot application...'
                     sh '''
                         chmod +x mvnw
-                        ./mvnw clean package -DskipTests
+                        # Build WITHOUT skipping tests - we'll run them in next stage
+                        ./mvnw clean compile
                         echo "Build completed!"
-                        ls -la target/*.jar
+                        ls -la target/classes/
                     '''
                 }
             }
@@ -33,27 +34,35 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 echo 'Running unit tests with H2 in-memory database...'
-                sh '''
-                    # Create test configuration with H2 database
-                    mkdir -p src/test/resources
-                    cat > src/test/resources/application-test.properties << 'EOF'
-        # Test profile with H2 in-memory database
-        spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-        spring.datasource.driver-class-name=org.h2.Driver
-        spring.datasource.username=sa
-        spring.datasource.password=
-        spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
-        spring.jpa.hibernate.ddl-auto=create-drop
-        spring.jpa.show-sql=false
-        spring.h2.console.enabled=false
-        EOF
-                    # Run tests
-                    ./mvnw test
-                '''
+                script {
+                    // Create test configuration with H2 database
+                    writeFile file: 'src/test/resources/application-test.properties', text: '''# Test profile with H2 in-memory database
+spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+spring.jpa.hibernate.ddl-auto=create-drop
+spring.jpa.show-sql=false
+spring.h2.console.enabled=false'''
+
+                    // Run tests
+                    sh './mvnw test'
+                }
             }
             post {
                 always {
                     junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                script {
+                    echo 'Packaging application...'
+                    sh './mvnw package -DskipTests'
+                    sh 'ls -la target/*.jar'
                 }
             }
         }
