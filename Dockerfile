@@ -3,9 +3,15 @@ FROM eclipse-temurin:17-jdk-alpine
 WORKDIR /app
 
 COPY . .
+# Use a more reliable Maven mirror
+ENV MAVEN_MIRROR_URL=https://repo1.maven.org/maven2
 
+# Clear any corrupted downloads and retry with backoff
 RUN chmod +x mvnw && \
-    ./mvnw clean package -DskipTests
+    rm -rf ~/.m2/repository/org/hibernate && \
+    (./mvnw clean package -DskipTests || \
+     sleep 10 && ./mvnw clean package -DskipTests || \
+     sleep 15 && ./mvnw clean package -DskipTests -o)
 
 EXPOSE 8089
 

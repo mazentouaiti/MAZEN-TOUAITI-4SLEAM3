@@ -66,12 +66,14 @@ spring.h2.console.enabled=false'''
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    echo 'Building Docker image...'
-                    sh """
-                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest .
-                        docker images | grep ${DOCKER_IMAGE}
-                    """
+                retry(3) {
+                    script {
+                        sh '''
+                            docker build --no-cache \
+                                --build-arg MAVEN_OPTS="-Dmaven.wagon.http.retryHandler.count=5" \
+                                -t student-management:latest .
+                        '''
+                    }
                 }
             }
         }
