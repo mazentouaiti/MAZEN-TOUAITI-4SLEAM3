@@ -77,6 +77,28 @@ spring.h2.console.enabled=false'''
                 }
             }
         }
+        stage('Docker push') {
+            steps {
+                script {
+                    echo "Pushing Docker image to ${DOCKER_REGISTRY}..."
+                    sh '''
+                        docker tag student-management:latest ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                    '''
+                }
+            }
+        }
+        stage('Verify Image on Registry') {
+            steps {
+                script {
+                    echo "Verifying Docker image on ${DOCKER_REGISTRY}..."
+                    sh '''
+                        docker pull ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                        echo "Image pulled successfully!"
+                    '''
+                }
+            }
+        }
 
 
 
