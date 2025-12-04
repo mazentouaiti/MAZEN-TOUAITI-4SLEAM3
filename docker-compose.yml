@@ -1,36 +1,39 @@
-version: '3.8'
 services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: student-mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: studentdb
+      MYSQL_USER: student
+      MYSQL_PASSWORD: student123
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
   student-management:
     build: .
+    container_name: student-app
+    restart: always
     ports:
-      - "8080:8080"
-    restart: unless-stopped
+      - "8081:8089"  # Note: Your app uses port 8089 (from logs)
+    depends_on:
+      mysql-db:
+        condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/studentdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=student
+      - SPRING_DATASOURCE_PASSWORD=student123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
       - JAVA_OPTS=-Xmx512m -Xms256m
-    # Add database if needed (uncomment and modify)
-    # depends_on:
-    #   - postgres-db
-    # networks:
-    #   - app-network
 
-  # Uncomment and configure if you need a database
-  # postgres-db:
-  #   image: postgres:15-alpine
-  #   environment:
-  #     POSTGRES_DB: studentdb
-  #     POSTGRES_USER: admin
-  #     POSTGRES_PASSWORD: secret
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
-  #   networks:
-  #     - app-network
-
-# volumes:
-#   postgres-data:
-
-# networks:
-#   app-network:
-#     driver: bridge
+volumes:
+  mysql-data:

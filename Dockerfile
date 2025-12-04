@@ -7,7 +7,8 @@ COPY . .
 RUN chmod +x mvnw && \
     ./mvnw clean package -DskipTests
 
-EXPOSE 8080
+EXPOSE 8089
 
-# Use the exact JAR filename
-CMD ["java", "-jar", "target/student-management-0.0.1-SNAPSHOT.jar"]
+# Default command uses docker profile (with MySQL)
+# But can be overridden with SPRING_PROFILES_ACTIVE environment variable
+ENTRYPOINT ["sh", "-c", "java -jar target/student-management-*.jar"]
