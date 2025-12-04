@@ -82,8 +82,8 @@ spring.h2.console.enabled=false'''
                 script {
                     echo "Pushing Docker image to ${DOCKER_REGISTRY}..."
                     sh '''
-                        docker tag student-management:latest ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE}:latest
                     '''
                 }
             }
@@ -93,9 +93,13 @@ spring.h2.console.enabled=false'''
                 script {
                     echo "Verifying Docker image on ${DOCKER_REGISTRY}..."
                     sh '''
-                        docker pull ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
-                        echo "Image pulled successfully!"
-                    '''
+                          docker pull ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+                          docker run --rm \
+                                  ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                                  sh -c "echo 'Image verified successfully'"
+
+                  '''
                 }
             }
         }
