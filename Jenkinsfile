@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_REGISTRY = 'docker.io'
-        DOCKER_IMAGE = 'touaitimazen472/student-management'
+        DOCKER_IMAGE = 'touaitimazen472/student-management'  // Fixed username
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         APP_PORT = "8089"
     }
@@ -64,48 +64,60 @@ spring.h2.console.enabled=false'''
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Login') {
             steps {
-                retry(3) {
-                    script {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',  // Update this with your Jenkins credentials ID
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
                         sh '''
-                            docker build --no-cache \
-                                --build-arg MAVEN_OPTS="-Dmaven.wagon.http.retryHandler.count=5" \
-                                -t student-management:latest .
+                            echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
                         '''
                     }
                 }
             }
         }
+
+        stage('Build Docker Image') {
+            steps {
+                retry(3) {
+                    script {
+                        sh """
+                            docker build --no-cache \\
+                                --build-arg MAVEN_OPTS="-Dmaven.wagon.http.retryHandler.count=5" \\
+                                -t ${DOCKER_IMAGE}:${DOCKER_TAG} \\
+                                -t ${DOCKER_IMAGE}:latest .
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Docker push') {
             steps {
                 script {
                     echo "Pushing Docker image to ${DOCKER_REGISTRY}..."
-                    sh '''
+                    sh """
                         docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
                         docker push ${DOCKER_IMAGE}:latest
-                    '''
+                    """
                 }
             }
         }
+
         stage('Verify Image on Registry') {
             steps {
                 script {
                     echo "Verifying Docker image on ${DOCKER_REGISTRY}..."
-                    sh '''
-                          docker pull ${DOCKER_IMAGE}:${DOCKER_TAG}
-
-                          docker run --rm \
-                                  ${DOCKER_IMAGE}:${DOCKER_TAG} \
-                                  sh -c "echo 'Image verified successfully'"
-
-                  '''
+                    sh """
+                        docker pull ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker run --rm --name test-container ${DOCKER_IMAGE}:${DOCKER_TAG} java -version
+                    """
                 }
             }
         }
-
-
-
     }
 
     post {
@@ -115,19 +127,22 @@ spring.h2.console.enabled=false'''
                 docker compose down 2>/dev/null || true
                 docker rm -f test-container 2>/dev/null || true
                 docker system prune -f 2>/dev/null || true
+                docker logout 2>/dev/null || true
             '''
             cleanWs()
         }
         success {
             echo '✅ Pipeline succeeded!'
             echo "Docker Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-            echo "Application URL when deployed: http://localhost:8081"
+            echo "Docker Image (latest): ${DOCKER_IMAGE}:latest"
+            echo "Application URL when deployed: http://localhost:${APP_PORT}"
         }
         failure {
             echo '❌ Pipeline failed!'
             sh '''
                 echo "=== Debug information ==="
                 docker ps -a | head -10
+                docker images | grep student-management
                 docker compose logs --tail=50 2>/dev/null || echo "No compose logs"
             '''
         }
