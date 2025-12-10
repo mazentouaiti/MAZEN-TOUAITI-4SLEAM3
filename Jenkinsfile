@@ -112,8 +112,8 @@ spring.h2.console.enabled=false'''
            script {
              echo "Verifying Docker image on docker.io..."
              sh '''
-               docker pull touaitimazen472/student-management:20
-               docker run --rm touaitimazen472/student-management:20 java -version
+               docker pull touaitimazen472/student-management:22
+               docker run --rm touaitimazen472/student-management:22 java -version
              '''
            }
          }
