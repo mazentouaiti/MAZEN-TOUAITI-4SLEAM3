@@ -107,17 +107,17 @@ spring.h2.console.enabled=false'''
             }
         }
 
-        stage('Verify Image on Registry') {
-            steps {
-                script {
-                    echo "Verifying Docker image on ${DOCKER_REGISTRY}..."
-                    sh """
-                        docker pull ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker run --rm --name test-container ${DOCKER_IMAGE}:${DOCKER_TAG} java -version
-                    """
-                }
-            }
-        }
+       stage('Verify Image on Registry') {
+         steps {
+           script {
+             echo "Verifying Docker image on docker.io..."
+             sh '''
+               docker pull touaitimazen472/student-management:20
+               docker run --rm touaitimazen472/student-management:20 java -version
+             '''
+           }
+         }
+       }
     }
 
     post {
