@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_REGISTRY = 'docker.io'
-        DOCKER_IMAGE = 'mazentouaiti/student-management'
+        DOCKER_IMAGE = 'touaitimazen472/student-management'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         APP_PORT = "8089"
     }
