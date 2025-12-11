@@ -106,6 +106,18 @@ spring.h2.console.enabled=false'''
                 }
             }
         }
+       stage('MVN SONARQUBE') {
+           steps {
+               script {
+                   echo '🔍 Running SonarQube code analysis...'
+
+                   //Option 1: Simple way (requires SonarQube server configured in Jenkins)
+                   withSonarQubeEnv('SonarQube') {
+                       sh 'mvn sonar:sonar -Dsonar.projectKey=student-management'
+                   }
+               }
+           }
+       }
     }
 
     post {
