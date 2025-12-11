@@ -3,9 +3,10 @@ pipeline {
 
     environment {
         DOCKER_REGISTRY = 'docker.io'
-        DOCKER_IMAGE = 'touaitimazen472/student-management'  // Fixed username
+        DOCKER_IMAGE = 'touaitimazen472/student-management'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         APP_PORT = "8089"
+        SONAR_HOST_URL = 'http://localhost:9000'  // Add SonarQube URL
     }
 
     stages {
@@ -54,6 +55,29 @@ spring.h2.console.enabled=false'''
             }
         }
 
+        stage('MVN SONARQUBE') {
+            steps {
+                script {
+                    echo '🔍 Running SonarQube code analysis...'
+
+                    // Method 1: Using Jenkins credentials (NO PLUGIN REQUIRED)
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            ./mvnw sonar:sonar \
+                            -Dsonar.host.url=${SONAR_HOST_URL} \
+                            -Dsonar.login=${SONAR_TOKEN} \
+                            -Dsonar.projectKey=student-management-${BUILD_NUMBER}
+                        """
+                    }
+
+                    // OR Method 2: If you installed the plugin, use this instead:
+                    // withSonarQubeEnv('SonarQube') {
+                    //     sh './mvnw sonar:sonar'
+                    // }
+                }
+            }
+        }
+
         stage('Package') {
             steps {
                 script {
@@ -68,7 +92,7 @@ spring.h2.console.enabled=false'''
             steps {
                 script {
                     withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',  // Update this with your Jenkins credentials ID
+                        credentialsId: 'docker-hub-credentials',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )]) {
@@ -106,18 +130,6 @@ spring.h2.console.enabled=false'''
                 }
             }
         }
-       stage('MVN SONARQUBE') {
-           steps {
-               script {
-                   echo '🔍 Running SonarQube code analysis...'
-
-                   //Option 1: Simple way (requires SonarQube server configured in Jenkins)
-                   withSonarQubeEnv('SonarQube') {
-                       sh 'mvn sonar:sonar -Dsonar.projectKey=student-management'
-                   }
-               }
-           }
-       }
     }
 
     post {
