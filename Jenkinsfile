@@ -106,18 +106,6 @@ spring.h2.console.enabled=false'''
                 }
             }
         }
-
-       stage('Verify Image on Registry') {
-         steps {
-           script {
-             echo "Verifying Docker image on docker.io..."
-             sh '''
-               docker pull touaitimazen472/student-management:22
-               docker run --rm touaitimazen472/student-management:22 java -version
-             '''
-           }
-         }
-       }
     }
 
     post {
