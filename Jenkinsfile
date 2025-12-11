@@ -6,7 +6,7 @@ pipeline {
         DOCKER_IMAGE = 'touaitimazen472/student-management'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         APP_PORT = "8089"
-        SONAR_HOST_URL = 'http://localhost:9000'  // Add SonarQube URL
+        SONAR_HOST_URL = 'http://localhost:9000'
     }
 
     stages {
@@ -60,20 +60,15 @@ spring.h2.console.enabled=false'''
                 script {
                     echo '🔍 Running SonarQube code analysis...'
 
-                    // Method 1: Using Jenkins credentials (NO PLUGIN REQUIRED)
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
                         sh """
                             ./mvnw sonar:sonar \
                             -Dsonar.host.url=${SONAR_HOST_URL} \
                             -Dsonar.login=${SONAR_TOKEN} \
-                            -Dsonar.projectKey=student-management-${BUILD_NUMBER}
+                            -Dsonar.projectKey=student-management-${BUILD_NUMBER} \
+                            -Dsonar.skipTests=true
                         """
                     }
-
-                    // OR Method 2: If you installed the plugin, use this instead:
-                    // withSonarQubeEnv('SonarQube') {
-                    //     sh './mvnw sonar:sonar'
-                    // }
                 }
             }
         }
@@ -88,45 +83,67 @@ spring.h2.console.enabled=false'''
             }
         }
 
-        stage('Docker Login') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )]) {
-                        sh '''
-                            echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                        '''
-                    }
-                }
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 retry(3) {
                     script {
+                        echo '🐳 Building Docker image...'
                         sh """
                             docker build --no-cache \\
                                 --build-arg MAVEN_OPTS="-Dmaven.wagon.http.retryHandler.count=5" \\
                                 -t ${DOCKER_IMAGE}:${DOCKER_TAG} \\
                                 -t ${DOCKER_IMAGE}:latest .
+
+                            echo "✅ Docker image built successfully"
+                            docker images | grep ${DOCKER_IMAGE} || echo "Image not found in list"
                         """
                     }
                 }
             }
         }
 
-        stage('Docker push') {
+        stage('Docker Login & Push') {
             steps {
                 script {
-                    echo "Pushing Docker image to ${DOCKER_REGISTRY}..."
-                    sh """
-                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker push ${DOCKER_IMAGE}:latest
-                    """
+                    echo '🔑 Logging into Docker Hub...'
+
+                    // Logout first to clear any stale sessions
+                    sh 'docker logout 2>/dev/null || true'
+
+                    // Login with credentials
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh '''
+                            echo "Logging in as $DOCKER_USERNAME..."
+                            echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+
+                            # Verify login
+                            if docker info | grep -q "Username: $DOCKER_USERNAME"; then
+                                echo "✅ Docker login successful"
+                            else
+                                echo "❌ Docker login failed"
+                                exit 1
+                            fi
+                        '''
+                    }
+
+                    echo "📤 Pushing Docker image..."
+
+                    // Push with retry
+                    retry(3) {
+                        sh """
+                            echo "Pushing ${DOCKER_IMAGE}:${DOCKER_TAG}..."
+                            docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+                            echo "Pushing ${DOCKER_IMAGE}:latest..."
+                            docker push ${DOCKER_IMAGE}:latest
+
+                            echo "✅ Docker push completed!"
+                        """
+                    }
                 }
             }
         }
@@ -134,12 +151,11 @@ spring.h2.console.enabled=false'''
 
     post {
         always {
-            echo 'Cleaning up...'
+            echo '🧹 Cleaning up...'
             sh '''
-                docker compose down 2>/dev/null || true
-                docker rm -f test-container 2>/dev/null || true
-                docker system prune -f 2>/dev/null || true
+                echo "=== Cleanup started ==="
                 docker logout 2>/dev/null || true
+                echo "Cleanup completed!"
             '''
             cleanWs()
         }
@@ -151,12 +167,25 @@ spring.h2.console.enabled=false'''
         }
         failure {
             echo '❌ Pipeline failed!'
-            sh '''
-                echo "=== Debug information ==="
-                docker ps -a | head -10
-                docker images | grep student-management
-                docker compose logs --tail=50 2>/dev/null || echo "No compose logs"
-            '''
+            script {
+                // Get the exact error
+                sh '''
+                    echo "=== Last 20 lines of Jenkins log ==="
+                    tail -20 /var/log/jenkins/jenkins.log 2>/dev/null || echo "Cannot access Jenkins logs"
+
+                    echo ""
+                    echo "=== Docker Hub Connection Test ==="
+                    timeout 10 curl -s -o /dev/null -w "%{http_code}" https://hub.docker.com || echo "Cannot connect"
+
+                    echo ""
+                    echo "=== Docker Disk Space ==="
+                    docker system df 2>/dev/null || echo "Docker not available"
+
+                    echo ""
+                    echo "=== Current Docker Images ==="
+                    docker images 2>/dev/null | head -15 || echo "Cannot list images"
+                '''
+            }
         }
     }
 }
